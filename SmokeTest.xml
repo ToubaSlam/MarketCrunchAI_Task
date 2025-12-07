@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE suite SYSTEM "http://testng.org/testng-1.0.dtd">
+<suite name="MarketCrunch AI">
+    <test name="Login">
+        <parameter name="browser" value=""/>
+        <classes>
+            <class name="TestCases.SmokeTest">
+                <methods>
+                    <include name="Verify_Home_Page_P"/>
+                </methods>
+                <methods>
+                    <include name="Try Key UI elements render"/>
+                </methods>
+            </class>
+        </classes>
+    </test>
+</suite>
