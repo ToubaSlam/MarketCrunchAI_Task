@@ -3,7 +3,7 @@ pipeline {
 
     tools {
         maven 'Maven_3.8.5' // Ensure this matches your configured Maven tool name
-        jdk 'JDK_21'        // Ensure this matches your configured JDK tool name
+        jdk 'JDK_11'        // Ensure this matches your configured JDK tool name
     }
 
     stages {
@@ -29,7 +29,8 @@ pipeline {
 
     post {
         always {
-            allure includeProperties: false, jdk: 'JDK_21', results: [[path: 'target/allure-results']]
+            allure includeProperties: false, jdk: 'JDK_11', results: [[path: 'target/allure-results']]
         }
     }
 }
+
