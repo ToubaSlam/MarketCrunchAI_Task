@@ -1,99 +1,77 @@
-name: Selenium Tests with Firefox
+name: Java CI for REST Assured + Allure
 
 on:
   push:
-    branches:
-      - master
-  pull_request:
-    branches:
-      - master
+    branches: [ "master" ]
+  schedule:
+    - cron: '0 0 * * 0'  # Weekly build
+  workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
-  build-and-test:
+  build:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v2
+        uses: actions/checkout@v4
 
-      - name: Set up JDK and Maven
-        uses: actions/setup-java@v2
+      - name: Set up JDK 11 and Cache Maven packages
+        uses: actions/setup-java@v4
         with:
-          java-version: '17'
-          distribution: 'adopt'
-          architecture: 'x64'
-          maven-version: '3.1.0'
-
-      - name: Install xmlstarlet
-        run: sudo apt-get install -y xmlstarlet
-
-      - name: Pull Selenium Docker image
-        run: docker pull selenium/standalone-firefox:latest
-
-      - name: Verify Docker image
-        run: docker run --rm selenium/standalone-firefox:latest firefox --version
+          distribution: 'temurin'
+          java-version: '11'
+          cache: 'maven'
 
       - name: Build and Test with Maven
         run: mvn clean verify
 
-      - name: Display Surefire XML report
+      - name: Install Allure CLI
+        run: |
+          wget https://github.com/allure-framework/allure2/releases/download/2.27.0/allure-2.27.0.tgz
+          tar -zxvf allure-2.27.0.tgz
+          sudo mv allure-2.27.0 /opt/allure
+          sudo ln -s /opt/allure/bin/allure /usr/bin/allure
+          allure --version
+
+      - name: Generate Allure Report
+        run: allure generate target/allure-results -o target/allure-report --clean
+
+      - name: Deploy Allure report to GitHub Pages
         if: always()
-        run: |
-          echo "Contents of Surefire XML report (testng-results.xml):"
-          cat target/surefire-reports/testng-results.xml || echo "Surefire XML report not found."
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: target/allure-report
 
-      - name: Extract test results
-        id: extract_results
-        run: |
-          if [ -f target/surefire-reports/testng-results.xml ]; then
-            total_tests=$(xmlstarlet sel -t -v "/testng-results/@total" target/surefire-reports/testng-results.xml)
-            failed_tests=$(xmlstarlet sel -t -v "/testng-results/@failed" target/surefire-reports/testng-results.xml)
-            skipped_tests=$(xmlstarlet sel -t -v "/testng-results/@skipped" target/surefire-reports/testng-results.xml)
-            passed_tests=$(xmlstarlet sel -t -v "/testng-results/@passed" target/surefire-reports/testng-results.xml)
-            echo "::set-output name=passed::$passed_tests"
-            echo "::set-output name=failed::$failed_tests"
-            echo "::set-output name=skipped::$skipped_tests"
-            echo "::set-output name=total::$total_tests"
-          else
-            echo "Surefire XML report not found."
-            echo "::set-output name=passed::0"
-            echo "::set-output name=failed::0"
-            echo "::set-output name=skipped::0"
-            echo "::set-output name=total::0"
-          fi
+      # - name: Send email notification
+      #   if: always()
+      #   uses: dawidd6/action-send-mail@v3
+      #   with:
+      #     server_address: smtp.gmail.com
+      #     server_port: 465
+      #     username: ${{ secrets.EMAIL_USERNAME }}
+      #     password: ${{ secrets.EMAIL_PASSWORD }}
+      #     subject: "Allure Report - REST Assured Test Results"
+      #     to: ${{ secrets.EMAIL_TO }}
+      #     from: ${{ secrets.EMAIL_FROM }}
+      #     body: |
+      #       📣 The latest test suite for REST Assured automation has completed.
+      #       📝 Allure report has been generated and deployed to GitHub Pages.
+      #       🚀 Review it for insights, bugs, and regression trends.
 
-      - name: Display test results summary
+      - name: Upload Surefire reports
         if: always()
-        run: |
-          echo "Total test cases = ${{ steps.extract_results.outputs.total }}"
-          echo "Passed test cases = ${{ steps.extract_results.outputs.passed }}"
-          echo "Failed test cases = ${{ steps.extract_results.outputs.failed }}"
-          echo "Skipped test cases = ${{ steps.extract_results.outputs.skipped }}"
-
-      - name: Generate Markdown table
-        id: generate_markdown_table
-        run: |
-          if [ -f target/surefire-reports/testng-results.xml ]; then
-            echo "### Passed Test Cases:"
-            xmlstarlet sel -t -m "//test-method[@status='PASS' and not(@name=preceding::test-method[@status='PASS']/@name)]" -v "@name" -n target/surefire-reports/testng-results.xml || echo "Error generating passed test cases list."
-            echo "------------------------------"
-            echo "### Failed Test Cases:"
-            xmlstarlet sel -t -m "//test-method[@status='FAIL' and not(@name=preceding::test-method[@status='FAIL']/@name)]" -v "@name" -n target/surefire-reports/testng-results.xml || echo "Error generating failed test cases list."
-          else
-            echo "Surefire XML report not found." >&2
-            exit 1
-          fi
-
-      - name: Upload Surefire XML report as artifact
-        if: success()
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: surefire-reports
           path: target/surefire-reports
 
-      - name: Upload Markdown table as artifact
-        if: success()
-        uses: actions/upload-artifact@v2
+      - name: Upload Allure report
+        if: always()
+        uses: actions/upload-artifact@v4
         with:
-          name: test-results
-          path: markdown_table.md  # Ensure the file is generated correctly
+          name: allure-report
+          path: target/allure-report
