@@ -29,8 +29,15 @@ pipeline {
 
     post {
         always {
-            allure includeProperties: false, jdk: 'JDK_11', results: [[path: 'target/allure-results']]
+            script {
+                try {
+                    // Attempt to publish Allure report if Allure commandline is configured in Jenkins.
+                    allure includeProperties: false, jdk: 'JDK_11', results: [[path: 'target/allure-results']]
+                } catch (err) {
+                    // If Allure CLI is not configured the plugin will throw — don't fail the build because of reporting.
+                    echo "Allure report generation skipped: ${err}"
+                }
+            }
         }
     }
 }
-
